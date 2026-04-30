@@ -4,16 +4,33 @@ use rs_merkle::{Hasher, MerkleProof, MerkleTree, algorithms::Sha256};
 use std::time::{Duration, Instant};
 mod hasher;
 use blake3::hash;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use sha256::digest;
+use std::fs::File;
+use std::io::BufWriter;
 use tqdm::tqdm;
 
 // Parameters to tweak
 const RUNS: u32 = 10;
 const TOTAL_LEAVES: usize = 100_000;
 
+#[derive(Debug)]
 enum HashAlgorithms {
     Sha256,
     Blake3,
+}
+
+#[derive(Serialize, Deserialize)]
+struct TimingEntry {
+    size: usize,
+    duration: u128,
+}
+
+#[derive(Serialize, Deserialize)]
+struct HashTiming {
+    function: String,
+    entries: Vec<TimingEntry>,
 }
 
 impl HashAlgorithms {
@@ -25,10 +42,18 @@ impl HashAlgorithms {
     }
 }
 
-fn hashing_time(string_to_test: &str, algorithm: HashAlgorithms) -> Vec<Duration> {
-    tqdm(256..string_to_test.len())
-        .map(|x| algorithm.hash(&string_to_test[..=x]))
-        .collect::<Vec<Duration>>()
+fn hashing_time(string_to_test: &str, algorithm: HashAlgorithms) -> HashTiming {
+    let entries: Vec<TimingEntry> = tqdm(256..string_to_test.len())
+        .map(|x| TimingEntry {
+            size: x,
+            duration: algorithm.hash(&string_to_test[..=x]).as_nanos(),
+        })
+        .collect();
+
+    HashTiming {
+        function: format!("{:?}", algorithm),
+        entries,
+    }
 }
 
 fn hash_sha256(test_string: &str) -> Duration {
@@ -48,7 +73,7 @@ fn find_switch_point(sha_timings: Vec<Duration>, blake_timings: Vec<Duration>) -
         .iter()
         .zip(blake_timings.iter())
         .enumerate()
-        .find_map(|(i, (sha, blake))| (sha > blake).then_some(i + 256))
+        .find_map(|(i, (sha, blake))| (sha > blake).then_some(i + 257))
 }
 
 fn find_leaf_size() -> usize {
@@ -58,13 +83,36 @@ fn find_leaf_size() -> usize {
         .map(|_| rng.sample(rand::distributions::Alphanumeric) as char)
         .collect();
     let string_to_test: &str = random_string.as_str();
+
     println!("Hashing with sha256 different sizes of strings:");
     let sha_timings = hashing_time(string_to_test, HashAlgorithms::Sha256);
+
     println!("Hashing with blake3 different sizes of strings:");
     let blake_timings = hashing_time(string_to_test, HashAlgorithms::Blake3);
-    match find_switch_point(sha_timings, blake_timings) {
+
+    let sha_durations: Vec<Duration> = sha_timings
+        .entries
+        .iter()
+        .map(|timing| Duration::from_nanos(timing.duration as u64))
+        .collect();
+    let blake_durations: Vec<Duration> = blake_timings
+        .entries
+        .iter()
+        .map(|timing| Duration::from_nanos(timing.duration as u64))
+        .collect();
+
+    let results = json!({
+        "sha256": sha_timings,
+        "blake3": blake_timings
+    });
+
+    let file = File::create("data.json").expect("Creation failed.");
+    let writer = BufWriter::new(file);
+    serde_json::to_writer_pretty(writer, &results).expect("Failed to write JSON to file");
+
+    match find_switch_point(sha_durations, blake_durations) {
         Some(point) => {
-            println!("The switch point is at length {}\n\n", point + 1);
+            println!("The switch point is at length {}\n\n", point);
             point
         }
         None => {
