@@ -26,7 +26,7 @@ impl HashAlgorithms {
 }
 
 fn hashing_time(string_to_test: &str, algorithm: HashAlgorithms) -> Vec<Duration> {
-    tqdm(0..string_to_test.len())
+    tqdm(256..string_to_test.len())
         .map(|x| algorithm.hash(&string_to_test[..=x]))
         .collect::<Vec<Duration>>()
 }
@@ -48,7 +48,7 @@ fn find_switch_point(sha_timings: Vec<Duration>, blake_timings: Vec<Duration>) -
         .iter()
         .zip(blake_timings.iter())
         .enumerate()
-        .find_map(|(i, (sha, blake))| (sha > blake).then_some(i))
+        .find_map(|(i, (sha, blake))| (sha > blake).then_some(i + 256))
 }
 
 fn find_leaf_size() -> usize {
