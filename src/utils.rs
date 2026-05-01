@@ -10,7 +10,7 @@ use crate::benchmarks::{HashTiming, find_switch_points, hashing_time};
 pub const RUNS: u32 = 10;
 pub const TOTAL_LEAVES: usize = 100_000;
 pub const MIN_SIZE: usize = 256;
-pub const MAX_SIZE: usize = 10_000;
+pub const MAX_SIZE: usize = 1024 * 2 + 1;
 
 pub fn random_leaves(n: usize, size: usize) -> Vec<String> {
     let mut rng = rand::rngs::StdRng::seed_from_u64(42);
@@ -44,10 +44,10 @@ pub fn save_results(sha_timings: &HashTiming, blake_timings: &HashTiming) {
 pub fn find_leaf_size() -> usize {
     let string_to_test = generate_test_data();
 
-    println!("Running Criterion benchmarks for SHA256...");
+    println!("Running benchmarks for SHA256...");
     let sha_timings = hashing_time(&string_to_test, "sha256");
 
-    println!("Running Criterion benchmarks for Blake3...");
+    println!("Running benchmarks for Blake3...");
     let blake_timings = hashing_time(&string_to_test, "blake3");
 
     let sha_durations: Vec<Duration> = sha_timings
